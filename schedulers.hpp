@@ -16,7 +16,7 @@
 
 #include "threadpool.hpp"
 
-std::unique_ptr<thread_pool> pool;
+#define CONCURENCY std::thread::hardware_concurrency()
 
 struct serial_scheduler {
     static constexpr auto name = "Single threaded serial scheduler";
@@ -43,11 +43,12 @@ struct serial_scheduler {
 
 struct parallel_scheduler {
     static constexpr auto name = "Multi threaded parallel scheduler";
+    static std::unique_ptr<thread_pool> pool;
 
     struct allocator {
         template<typename Vec>
         static auto alloc() {
-            std::vector<std::unique_ptr<std::tuple<Vec, Vec, Vec>>> ret(std::thread::hardware_concurrency());
+            std::vector<std::unique_ptr<std::tuple<Vec, Vec, Vec>>> ret(CONCURENCY);
             std::generate(ret.begin(), ret.end(), []() { return std::make_unique<std::tuple<Vec, Vec, Vec>>(); });
             return ret;
         }
@@ -55,8 +56,8 @@ struct parallel_scheduler {
 
     template<typename TNum, typename Vec, template<class, class> typename Kernel, typename Arg = decltype(allocator::template alloc<Vec>())>
     static inline auto schedule(Arg &arg) {
-        std::vector<std::future<std::chrono::nanoseconds>> res(std::thread::hardware_concurrency());
-        std::vector<std::chrono::nanoseconds> resval(std::thread::hardware_concurrency());
+        std::vector<std::future<std::chrono::nanoseconds>> res(CONCURENCY);
+        std::vector<std::chrono::nanoseconds> resval(CONCURENCY);
         std::transform(arg.begin(), arg.end(), res.begin(), [] (auto &ptr) {
             return pool->submit([ &ptr]() { return serial_scheduler::template schedule<TNum, Vec, Kernel>(ptr); });
         });
@@ -66,9 +67,11 @@ struct parallel_scheduler {
 
     template<class TNum, size_t ElementCount, template<class, class> typename Kernel, typename Vec>
     static double result(int64_t delta) {
-        return static_cast<double>((ElementCount * std::thread::hardware_concurrency())  * Kernel<Vec, TNum>::bytes_per_iter) / delta;
+        return static_cast<double>((ElementCount * CONCURENCY)  * Kernel<Vec, TNum>::bytes_per_iter) / delta;
     }
 };
+
+std::unique_ptr<thread_pool> parallel_scheduler::pool = std::make_unique<thread_pool>(CONCURENCY);
 
 template<typename Scheduler, class TNum, size_t Size, template<class, class> typename Kernel, size_t ElementCount = Size / sizeof(TNum) / 3,
         typename Vec = typename std::array<TNum, ElementCount>>

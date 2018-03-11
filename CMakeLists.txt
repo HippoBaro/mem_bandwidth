@@ -7,3 +7,4 @@ set(OPTS -Wall -Wextra -Werror -march=native -O3)
 add_executable(mem_bandwidth main.cpp kernels.hpp schedulers.hpp threadpool.hpp safequeue.hpp)
 
 target_compile_options(mem_bandwidth PUBLIC ${OPTS})
+target_link_libraries(mem_bandwidth PUBLIC pthread)

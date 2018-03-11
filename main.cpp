@@ -12,7 +12,7 @@ auto make_stats(Scheduler &scheduler) {
     auto bandwidths = std::array<decltype(std::declval<Scheduler>()()), RoundCount>();
     std::generate(bandwidths.begin(), bandwidths.end(), [&scheduler] { return scheduler(); });
     auto minmax = std::minmax_element(bandwidths.begin() + 1, bandwidths.end());
-    return std::make_tuple(*minmax.second, *minmax.first, std::accumulate(bandwidths.begin() + 1, bandwidths.end(), 0.0) / RoundCount);
+    return std::make_tuple(*minmax.second, *minmax.first, std::accumulate(bandwidths.begin() + 1, bandwidths.end(), 0.0) / RoundCount - 1);
 }
 
 int format(std::tuple<double, double, double> const& result, std::string const& kernel_name) {
@@ -30,13 +30,10 @@ void benchmark() {
               << std::setw(13) << std::right << "Min (GB/s)" << std::setw(12) << std::right << "Avr (GB/s)" << std::endl;
 
     using expander = int[];
-    (void) expander{ 0, (format(make_stats<10>(time_execution<Scheduler, double, std::mega::num * Mem, Kernels>), Kernels<int*, int>::name))... };
+    (void) expander{ 0, (format(make_stats<30>(time_execution<Scheduler, double, std::mega::num * Mem, Kernels>), Kernels<int*, int>::name))... };
 }
 
-
 int main() {
-    pool = std::make_unique<thread_pool>(std::thread::hardware_concurrency());
-
     benchmark<serial_scheduler, 100, fill, copy, scale, sum, triad, vsum, vprod>();
     benchmark<parallel_scheduler, 50, fill, copy, scale, sum, triad, vsum, vprod>();
     return EXIT_SUCCESS;
